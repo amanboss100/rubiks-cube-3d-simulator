@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Rubik Simulator - Amanboss_100</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #050510;
+            font-family: sans-serif;
+            color: #0ff;
+        }
+
+        /* UI */
+        #ui {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 12px;
+            box-shadow: 0 0 15px #0ff;
+            backdrop-filter: blur(10px);
+        }
+
+        select {
+            padding: 6px;
+            background: #111;
+            color: #0ff;
+            border: none;
+            border-radius: 6px;
+        }
+
+        /* footer */
+        #footer {
+            position: fixed;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            opacity: 0.7;
+            text-shadow: 0 0 10px #0ff;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="ui">
+        <select id="size">
+            <option value="2">2×2 Cube</option>
+            <option value="3" selected>3×3 Cube</option>
+        </select>
+    </div>
+
+    <div id="footer">Made by Amanboss_100</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+
+    <script>
+        let scene, camera, renderer, group;
+        let cubies = [];
+        let N = 3;
+        let rotating = false;
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 6);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(innerWidth, innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            let light = new THREE.PointLight(0xffffff, 1);
+            light.position.set(10, 10, 10);
+            scene.add(light);
+
+            createCube(N);
+
+            // resize
+            window.addEventListener('resize', () => {
+                camera.aspect = innerWidth / innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(innerWidth, innerHeight);
+            });
+
+            // drag rotate whole cube
+            let drag = false, px, py;
+
+            renderer.domElement.addEventListener('mousedown', e => {
+                drag = true; px = e.clientX; py = e.clientY;
+            });
+            window.addEventListener('mouseup', () => drag = false);
+
+            window.addEventListener('mousemove', e => {
+                if (!drag) return;
+                group.rotation.y += (e.clientX - px) * 0.01;
+                group.rotation.x += (e.clientY - py) * 0.01;
+                px = e.clientX; py = e.clientY;
+            });
+
+            // mobile touch
+            renderer.domElement.addEventListener('touchstart', e => {
+                drag = true;
+                px = e.touches[0].clientX;
+                py = e.touches[0].clientY;
+            });
+            renderer.domElement.addEventListener('touchmove', e => {
+                if (!drag) return;
+                let x = e.touches[0].clientX;
+                let y = e.touches[0].clientY;
+                group.rotation.y += (x - px) * 0.01;
+                group.rotation.x += (y - py) * 0.01;
+                px = x; py = y;
+            });
+            window.addEventListener('touchend', () => drag = false);
+
+            // size change
+            document.getElementById("size").onchange = e => {
+                N = parseInt(e.target.value);
+                createCube(N);
+            };
+
+            // keyboard controls
+            window.addEventListener("keydown", e => {
+                if (rotating) return;
+
+                switch (e.key.toLowerCase()) {
+                    case 'r': rotateLayer('x', 1, 1); break;
+                    case 'l': rotateLayer('x', -1, -1); break;
+                    case 'u': rotateLayer('y', 1, 1); break;
+                    case 'd': rotateLayer('y', -1, -1); break;
+                    case 'f': rotateLayer('z', 1, 1); break;
+                    case 'b': rotateLayer('z', -1, -1); break;
+                }
+            });
+        }
+
+        function createCube(n) {
+            if (group) scene.remove(group);
+
+            group = new THREE.Group();
+            cubies = [];
+
+            let offset = (n - 1) / 2;
+
+            for (let x = 0; x < n; x++) {
+                for (let y = 0; y < n; y++) {
+                    for (let z = 0; z < n; z++) {
+
+                        let geo = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+
+                        let mats = [
+                            new THREE.MeshStandardMaterial({ color: 0xff0000 }),
+                            new THREE.MeshStandardMaterial({ color: 0xff8000 }),
+                            new THREE.MeshStandardMaterial({ color: 0xffff00 }),
+                            new THREE.MeshStandardMaterial({ color: 0xffffff }),
+                            new THREE.MeshStandardMaterial({ color: 0x00ff00 }),
+                            new THREE.MeshStandardMaterial({ color: 0x0000ff })
+                        ];
+
+                        let cube = new THREE.Mesh(geo, mats);
+
+                        cube.position.set(
+                            x - offset,
+                            y - offset,
+                            z - offset
+                        );
+
+                        cubies.push(cube);
+                        group.add(cube);
+                    }
+                }
+            }
+
+            scene.add(group);
+
+            // adjust camera
+            camera.position.set(0, 0, n * 3);
+        }
+
+        function rotateLayer(axis, layerIndex, dir) {
+            rotating = true;
+
+            let layerPos = layerIndex * ((N - 1) / 2);
+
+            let temp = new THREE.Group();
+            scene.add(temp);
+
+            cubies.forEach(c => {
+                if (Math.abs(c.position[axis] - layerPos) < 0.1) {
+                    temp.add(c);
+                }
+            });
+
+            let angle = Math.PI / 2 * dir;
+            let step = 0;
+
+            function animateRotation() {
+                if (step < 1) {
+                    temp.rotation[axis] += angle * 0.1;
+                    step += 0.1;
+                    requestAnimationFrame(animateRotation);
+                } else {
+
+                    temp.updateMatrixWorld();
+
+                    while (temp.children.length) {
+                        let c = temp.children[0];
+                        c.applyMatrix4(temp.matrix);
+                        group.add(c);
+                    }
+
+                    scene.remove(temp);
+                    centerCube();
+                    rotating = false;
+                }
+            }
+            animateRotation();
+        }
+
+        function centerCube() {
+            let box = new THREE.Box3().setFromObject(group);
+            let center = new THREE.Vector3();
+            box.getCenter(center);
+            group.position.sub(center);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+    </script>
+
+</body>
+
+</html>
